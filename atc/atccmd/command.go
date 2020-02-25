@@ -18,6 +18,7 @@ import (
 
 	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/lager"
+	"github.com/MasterOfBinary/gobatch/batch"
 	"github.com/concourse/concourse"
 	"github.com/concourse/concourse/atc"
 	"github.com/concourse/concourse/atc/api"
@@ -1686,6 +1687,12 @@ func (cmd *RunCommand) constructAPIHandler(
 		cmd.Auditor.EnableVolumeAuditLog,
 		logger,
 	)
+
+	batcher := accessor.NewBatcher(logger, dbUserFactory, &batch.ConfigValues{
+		MaxItems: 100,
+		MinTime:  15 * time.Second,
+	})
+
 	apiWrapper := wrappa.MultiWrappa{
 		wrappa.NewAPIMetricsWrappa(logger),
 		wrappa.NewAPIAuthWrappa(
@@ -1695,7 +1702,7 @@ func (cmd *RunCommand) constructAPIHandler(
 			checkWorkerTeamAccessHandlerFactory,
 		),
 		wrappa.NewConcourseVersionWrappa(concourse.Version),
-		wrappa.NewAccessorWrappa(logger, accessFactory, aud, dbUserFactory),
+		wrappa.NewAccessorWrappa(logger, accessFactory, aud, batcher),
 		wrappa.NewCompressionWrappa(logger),
 	}
 
