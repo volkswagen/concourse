@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/klauspost/compress/zstd"
+	"github.com/concourse/concourse/atc/compression"
 	"github.com/concourse/concourse/atc/runtime"
 	"github.com/hashicorp/go-multierror"
 )
@@ -39,12 +39,21 @@ type StreamableArtifactSource interface {
 }
 
 type artifactSource struct {
-	artifact runtime.Artifact
-	volume   Volume
+	artifact    runtime.Artifact
+	volume      Volume
+	compression compression.Compression
 }
 
-func NewStreamableArtifactSource(artifact runtime.Artifact, volume Volume) StreamableArtifactSource {
-	return &artifactSource{artifact: artifact, volume: volume}
+func NewStreamableArtifactSource(
+	artifact runtime.Artifact,
+	volume Volume,
+	compression compression.Compression,
+) StreamableArtifactSource {
+	return &artifactSource{
+		artifact:    artifact,
+		volume:      volume,
+		compression: compression,
+	}
 }
 
 // TODO: figure out if we want logging before and after streams, I remove logger from private methods
@@ -53,14 +62,14 @@ func (source *artifactSource) StreamTo(
 	logger lager.Logger,
 	destination ArtifactDestination,
 ) error {
-	out, err := source.volume.StreamOut(ctx, ".")
+	out, err := source.volume.StreamOut(ctx, ".", source.compression.Encoding())
 	if err != nil {
 		return err
 	}
 
 	defer out.Close()
 
-	err = destination.StreamIn(ctx, ".", out)
+	err = destination.StreamIn(ctx, ".", source.compression.Encoding(), out)
 	if err != nil {
 		return err
 	}
@@ -73,16 +82,16 @@ func (source *artifactSource) StreamFile(
 	logger lager.Logger,
 	filepath string,
 ) (io.ReadCloser, error) {
-	out, err := source.volume.StreamOut(ctx, filepath)
+	out, err := source.volume.StreamOut(ctx, filepath, source.compression.Encoding())
 	if err != nil {
 		return nil, err
 	}
 
-	zstdReader, err := zstd.NewReader(out)
+	compressionReader, err := source.compression.NewReader(out)
 	if err != nil {
-		return nil, err
+		return nil, runtime.FileNotFoundError{Path: filepath}
 	}
-	tarReader := tar.NewReader(zstdReader)
+	tarReader := tar.NewReader(compressionReader)
 
 	_, err = tarReader.Next()
 	if err != nil {
@@ -93,7 +102,7 @@ func (source *artifactSource) StreamFile(
 		reader: tarReader,
 		closers: []io.Closer{
 			out,
-			CloseWithError{zstdReader},
+			compressionReader,
 		},
 	}, nil
 }
@@ -112,18 +121,6 @@ func NewCacheArtifactSource(artifact runtime.CacheArtifact) ArtifactSource {
 
 func (source *cacheArtifactSource) ExistsOn(logger lager.Logger, worker Worker) (Volume, bool, error) {
 	return worker.FindVolumeForTaskCache(logger, source.TeamID, source.JobID, source.StepName, source.Path)
-}
-
-type CloseWithError struct {
-	NoErringCloser interface {
-		Close()
-	}
-}
-
-// I know this is bad
-func (cwe CloseWithError) Close() error {
-	cwe.NoErringCloser.Close()
-	return nil
 }
 
 type fileReadMultiCloser struct {

@@ -25,6 +25,7 @@ import (
 	"github.com/concourse/concourse/atc/api/containerserver"
 	"github.com/concourse/concourse/atc/auditor"
 	"github.com/concourse/concourse/atc/builds"
+	"github.com/concourse/concourse/atc/compression"
 	"github.com/concourse/concourse/atc/creds"
 	"github.com/concourse/concourse/atc/creds/noop"
 	"github.com/concourse/concourse/atc/db"
@@ -179,6 +180,7 @@ type RunCommand struct {
 	BuildTrackerInterval time.Duration `long:"build-tracker-interval" default:"10s" description:"Interval on which to run build tracking."`
 
 	TelemetryOptIn bool `long:"telemetry-opt-in" hidden:"true" description:"Enable anonymous concourse version reporting."`
+	ZstdOptIn      bool `long:"zstd-opt-in" hidden:"true" description:"Enable zstd compression."`
 
 	DefaultBuildLogsToRetain uint64 `long:"default-build-logs-to-retain" description:"Default build logs to retain, 0 means all"`
 	MaxBuildLogsToRetain     uint64 `long:"max-build-logs-to-retain" description:"Maximum build logs to retain, 0 means not specified. Will override values configured in jobs"`
@@ -613,11 +615,12 @@ func (cmd *RunCommand) constructAPIMembers(
 		return nil, err
 	}
 
+	compressionLib := compression.NewGzipCompression()
 	workerProvider := worker.NewDBWorkerProvider(
 		lockFactory,
 		retryhttp.NewExponentialBackOffFactory(5*time.Minute),
 		resourceFetcher,
-		image.NewImageFactory(imageResourceFetcherFactory),
+		image.NewImageFactory(imageResourceFetcherFactory, compressionLib),
 		dbResourceCacheFactory,
 		dbResourceConfigFactory,
 		dbWorkerBaseResourceTypeFactory,
@@ -632,7 +635,7 @@ func (cmd *RunCommand) constructAPIMembers(
 	)
 
 	pool := worker.NewPool(workerProvider)
-	workerClient := worker.NewClient(pool, workerProvider)
+	workerClient := worker.NewClient(pool, workerProvider, compressionLib)
 
 	credsManagers := cmd.CredentialManagers
 	dbPipelineFactory := db.NewPipelineFactory(dbConn, lockFactory)
@@ -795,11 +798,17 @@ func (cmd *RunCommand) constructBackendMembers(
 		return nil, err
 	}
 
+	var compressionLib compression.Compression
+	if cmd.ZstdOptIn {
+		compressionLib = compression.NewZstdCompression()
+	} else {
+		compressionLib = compression.NewGzipCompression()
+	}
 	workerProvider := worker.NewDBWorkerProvider(
 		lockFactory,
 		retryhttp.NewExponentialBackOffFactory(5*time.Minute),
 		resourceFetcher,
-		image.NewImageFactory(imageResourceFetcherFactory),
+		image.NewImageFactory(imageResourceFetcherFactory, compressionLib),
 		dbResourceCacheFactory,
 		dbResourceConfigFactory,
 		dbWorkerBaseResourceTypeFactory,
@@ -814,7 +823,7 @@ func (cmd *RunCommand) constructBackendMembers(
 	)
 
 	pool := worker.NewPool(workerProvider)
-	workerClient := worker.NewClient(pool, workerProvider)
+	workerClient := worker.NewClient(pool, workerProvider, compressionLib)
 
 	defaultLimits, err := cmd.parseDefaultLimits()
 	if err != nil {
