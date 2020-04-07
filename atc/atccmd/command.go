@@ -649,9 +649,11 @@ func (cmd *RunCommand) constructAPIMembers(
 	dbClock := db.NewClock()
 	dbWall := db.NewWall(dbConn, &dbClock)
 
+	cacher := accessor.NewCacher(logger, dbConn.Bus(), teamFactory)
+
 	accessFactory := accessor.NewAccessFactory(
 		cmd.constructTokenVerifier(httpClient),
-		teamFactory,
+		cacher,
 		cmd.SystemClaimKey,
 		cmd.SystemClaimValues,
 	)

@@ -23,16 +23,22 @@ type AccessFactory interface {
 	Create(*http.Request, string) (Access, error)
 }
 
+//go:generate counterfeiter .  TeamFetcher
+
+type TeamFetcher interface {
+	GetTeams() ([]db.Team, error)
+}
+
 func NewAccessFactory(
 	verifier Verifier,
-	teamFactory db.TeamFactory,
+	teamFetcher TeamFetcher,
 	systemClaimKey string,
 	systemClaimValues []string,
 ) AccessFactory {
 
 	factory := accessFactory{
 		verifier:          verifier,
-		teamFactory:       teamFactory,
+		teamFetcher:       teamFetcher,
 		systemClaimKey:    systemClaimKey,
 		systemClaimValues: systemClaimValues,
 		rolesActionMap:    map[string]string{},
@@ -48,14 +54,13 @@ func NewAccessFactory(
 
 type accessFactory struct {
 	verifier          Verifier
-	teamFactory       db.TeamFactory
+	teamFetcher       TeamFetcher
 	systemClaimKey    string
 	systemClaimValues []string
 	rolesActionMap    map[string]string
 }
 
 func (a *accessFactory) Create(r *http.Request, action string) (Access, error) {
-
 	requiredRole := a.RoleOfAction(action)
 
 	verification := a.verify(r)
@@ -64,7 +69,7 @@ func (a *accessFactory) Create(r *http.Request, action string) (Access, error) {
 		return NewAccessor(verification, requiredRole, a.systemClaimKey, a.systemClaimValues, nil), nil
 	}
 
-	teams, err := a.teamFactory.GetTeams()
+	teams, err := a.teamFetcher.GetTeams()
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +78,6 @@ func (a *accessFactory) Create(r *http.Request, action string) (Access, error) {
 }
 
 func (a *accessFactory) verify(r *http.Request) Verification {
-
 	claims, err := a.verifier.Verify(r)
 	if err != nil {
 		switch err {
@@ -88,7 +92,6 @@ func (a *accessFactory) verify(r *http.Request) Verification {
 }
 
 func (a *accessFactory) CustomizeActionRoleMap(logger lager.Logger, customMapping CustomActionRoleMap) error {
-
 	// Get all validate role names
 	allKnownRoles := map[string]interface{}{}
 	for _, roleName := range a.rolesActionMap {
