@@ -348,6 +348,51 @@ func (s *IntegrationSuite) TestAttach() {
 	s.NoError(err)
 }
 
+// TestCustomDNS verfies that the value passed via CONCOURSE_GARDEN_DNS_SERVER is
+// written to the container's etc/resolv.conf
+//
+func (s *IntegrationSuite) TestCustomDNS() {
+	handle := uuid()
+
+	container, err := s.backend.Create(garden.ContainerSpec{
+		Handle: handle,
+		RootFSPath: "raw://" + s.rootfs,
+		Privileged: true,
+	})
+	s.NoError(err)
+
+	defer func() {
+		s.NoError(s.backend.Destroy(handle))
+	}()
+
+	buf := new(buffer)
+
+	proc, err := container.Run(
+		garden.ProcessSpec{
+			Path: "/executable",
+			Args: []string{
+				"-cat",
+				"/etc/resolv.conf",
+			},
+		},
+		garden.ProcessIO{
+			Stdout: buf,
+			Stderr: buf,
+		},
+	)
+	s.NoError(err)
+
+	exitCode, err := proc.Wait()
+	s.NoError(err)
+
+	fmt.Println(buf.String())
+
+	s.Equal(exitCode, 0)
+	expectedDNSServer := "nameserver 1.1.1.1"
+	s.Equal(expectedDNSServer, buf.String())
+}
+
+
 // TestUngracefulStop aims at validating that we're giving the process enough
 // opportunity to finish, but that at the same time, we don't wait forever.
 //
