@@ -15,12 +15,12 @@ func KeepAlive(ctx context.Context, sshClient *ssh.Client, tcpConn *net.TCPConn,
 	keepAliveTicker := time.NewTicker(interval)
 
 	for {
-		// ignore reply; server may just not have handled it, since there's no
-		// standard keepalive request name
 
 		sendKeepAliveRequest := make(chan error,1)
 		go func (){
 			defer close(sendKeepAliveRequest)
+			// ignore reply; server may just not have handled it, since there's no
+			// standard keepalive request name
 			_, _, err := sshClient.Conn.SendRequest("keepalive", true, []byte("sup"))
 			sendKeepAliveRequest <- err
 		}()
