@@ -20,3 +20,15 @@
 * @pnsantos updated the Material Design icon library version to `5.0.45`.
 
   **note:** some icons changed names (e.g. `mdi-github-circle` was changed to `mdi-github`) so after this update you might have to update some `icon:` references
+
+
+#### <sub><sup><a name="5368" href="#5368">:link:</a></sup></sub> feature
+
+* Implented the core functionality for archiving pipelines [RFC #33]. 
+
+  **note**: archived pipelines are neither visible in the web UI (#5370) nor in `fly pipelines`.
+
+  **note:** archiving a pipeline will nullify the pipeline configuration. If for some reason you downgrade the version of Concourse, unpausing a pipeline that was previously archived will result in a broken pipeline. To fix that, set the pipeline again.
+
+[RFC #33]: https://github.com/concourse/rfcs/pull/33
+
