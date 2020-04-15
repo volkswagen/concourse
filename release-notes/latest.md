@@ -1,80 +1,46 @@
-#### <sub><sup><a name="4938" href="#4938">:link:</a></sup></sub> feature
+#### <sub><sup><a name="4950" href="#4950">:link:</a></sup></sub> feature, breaking
 
-* Include job label in build duration metrics exported to Prometheus. #4976
+* "Have you tried logging out and logging back in?"
+            - Probably every concourse operator at some point
 
-#### <sub><sup><a name="5023" href="#5023">:link:</a></sup></sub> fix
+  In the old login flow, concourse used to take all your upstream third party info (think github username, teams, etc) figure out what teams you're on, and encode those into your auth token. The problem with this approach is that every time you change your team config, you need to log out and log back in. 
 
-* The dashboard page refreshes its data every 5 seconds. Until now, it was possible (especially for admin users) for the dashboard to initiate an ever-growing number of API calls, unnecessarily consuming browser, network and API resources. Now the dashboard will not initiate a request for more data until the previous request finishes. #5023
+  So now concourse doesn't do this anymore. Now we use a token directly from dex, the out-of-the-box identity provider that ships with concourse. If you're interested in the details you can check out [the issue](https://github.com/concourse/concourse/issues/2936).
 
-#### <sub><sup><a name="4607" href="#4607">:link:</a></sup></sub> feature
+  NOTE: this is a breaking change. You'll neeed to add a couple required flags at startup `CONCOURSE_CLIENT_SECRET` and `CONCOURSE_TSA_CLIENT_SECRET`. And, yes, you will need to log out and log back in one last time.
 
-* Add experimental support for exposing traces to [Jaeger] or [Stackdriver].
+#### <sub><sup><a name="5305" href="#5305">:link:</a></sup></sub> feature
 
-With this feature enabled (via `--tracing-(jaeger|stackdriver)-*` variables in
-`concourse web`), the `web` node starts recording traces that represent the
-various steps that a build goes through, sending them to the configured trace
-collector. #4607
+* We've updated the way that hijacked containers get garbage collected
 
-As this feature is being built using [OpenTelemetry], expect to have support for
-other systems soon.
+  We are no longer relying on garden to clean up hijacked containers. Instead, we have implemented this functionality in concourse itself. This makes it much more portable to different container backends.
 
-[OpenTelemetry]: https://opentelemetry.io/
-[Jaeger]: https://www.jaegertracing.io/
-[Stackdriver]: https://cloud.google.com/trace/
+#### <sub><sup><a name="5375" href="#5375">:link:</a></sup></sub> fix
 
-#### <sub><sup><a name="4092" href="#4092">:link:</a></sup></sub> feature
+* Fix rendering pipeline previews on the dashboard on Safari. #5375
 
-* @joshzarrabi added the `--all` flag to the `fly pause-pipeline` and
-`fly unpause-pipeline` commands. This allows users to pause or unpause every
-pipeline on a team at the same time. #4092
+#### <sub><sup><a name="5377" href="#5377">:link:</a></sup></sub> fix
 
-#### <sub><sup><a name="5133" href="#5133">:link:</a></sup></sub> fix
+* Fix pipeline tooltips being hidden behind other cards. #5377
 
-* In the case that a user has multiple roles on a team, the pills on the team headers on the dashboard now accurately reflect the logged-in user's most-privileged role on each team. #5133
+#### <sub><sup><a name="5384" href="#5384">:link:</a></sup></sub> fix
 
-#### <sub><sup><a name="5118" href="#5118">:link:</a></sup></sub> feature
+* Fix log highlighting on the one-off-build page. Previously, highlighting any log lines would cause the page to reload. #5384
 
-* Improved the performance of the dashboard by only rendering the pipeline cards that are visible. #5118
+#### <sub><sup><a name="5392" href="#5392">:link:</a></sup></sub> fix
 
-#### <sub><sup><a name="5160" href="#5160">:link:</a></sup></sub> fix
+* Fix regression which inhibited scrolling through the build history list. #5392
 
-* Fix misuse of mount options when performing copy-on-write volumes based on
-  other copy-on-write volumes 
+#### <sub><sup><a name="5397" href="#5397">:link:</a></sup></sub> feature, breaking
 
-This case could be faced when providing inputs and outputs with
-overlapping paths.
+* @pnsantos updated the Material Design icon library version to `5.0.45`.
 
-* Switch CGO-based Zstd library by a pure go one
+  **note:** some icons changed names (e.g. `mdi-github-circle` was changed to `mdi-github`) so after this update you might have to update some `icon:` references
 
-Certain payloads could make Concourse return internal errors due to possible
-errors from the library we used before.
+#### <sub><sup><a name="5410" href="#5410">:link:</a></sup></sub> feature
 
-#### <sub><sup><a name="4847" href="#4847">:link:</a></sup></sub> fix
+* We've moved the "pin comment" field in the Resource view to the top of the page (next to the currently pinned version). The comment can be edited inline.
 
-* Set a default value of `4h` for `rebalance-interval`. Previously, this value was unset. With the new default, the workers will reconnect to a randomly selected TSA (SSH Gateway) every 4h.
-
-#### <sub><sup><a name="5216" href="#5216">:link:</a></sup></sub> fix
-
-* Bump golang.org/x/crypto module from `v0.0.0-20191119213627-4f8c1d86b1ba` to `v0.0.0-20200220183623-bac4c82f6975` to address vulnerability in ssh package.
-
-#### <sub><sup><a name="5148" href="#5148">:link:</a></sup></sub> feature
-
-* Improve the initial page load time by lazy-loading Javascript that isn't necessary for the first render. #5148
-
-#### <sub><sup><a name="5262" href="#5262">:link:</a></sup></sub> feature
-
-* Improve the dashboard load time by caching API responses to browser `localStorage` and first rendering a stale view of your pipelines. #5262
-
-[OpenTelemetry]: https://opentelemetry.io/
-[Jaeger]: https://www.jaegertracing.io/
-[Stackdriver]: https://cloud.google.com/trace/
-
-
-#### <sub><sup><a name="5113" href="#5113">:link:</a></sup></sub> feature
-
-* @aledeganopix4d added a `last updated` column to the output of `fly pipelines` showing
-the last date where the pipeline was set or reset. #5113
-
-#### <sub><sup><a name="5275" href="#5275">:link:</a></sup></sub> fix
-
-* Ensure the build page doesn't get reloaded when you highlight a log line, and fix auto-scrolling to a highlighted log line. #5275
+#### <sub><sup><a name="5057" href="#5057">:link:</a></sup></sub> feature
+ 
+ * @HannesHasselbring and @tenjaa added a prometheus metric of the amount of tasks that are currently waiting to be scheduled when using the `limit-active-tasks` placement strategy
