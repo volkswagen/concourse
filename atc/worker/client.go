@@ -95,18 +95,24 @@ type Client interface {
 	) (GetResult, error)
 }
 
-func NewClient(pool Pool, provider WorkerProvider, compression compression.Compression) *client {
+func NewClient(pool Pool,
+	provider WorkerProvider,
+	compression compression.Compression) *client {
 	return &client{
-		pool:        pool,
-		provider:    provider,
-		compression: compression,
+		pool:                        pool,
+		provider:                    provider,
+		compression:                 compression,
+		workerPollingInterval:       5 * time.Second,
+		workerStatusPublishInterval: 1 * time.Minute,
 	}
 }
 
 type client struct {
-	pool        Pool
-	provider    WorkerProvider
-	compression compression.Compression
+	pool                        Pool
+	provider                    WorkerProvider
+	compression                 compression.Compression
+	workerPollingInterval       time.Duration
+	workerStatusPublishInterval time.Duration
 }
 
 type TaskResult struct {
@@ -258,7 +264,7 @@ func (client *client) RunTaskStep(
 		}
 	}
 
-	chosenWorker, err := client.chooseTaskWorker(
+	chosenWorker, err := client.chooseTaskWorkerNew(
 		ctx,
 		logger,
 		strategy,
