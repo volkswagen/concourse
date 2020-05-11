@@ -30,7 +30,6 @@ var _ = Describe("RunTaskStep", func() {
 		err        error
 
 		outputBuffer *bytes.Buffer
-		cancel       func()
 		ctx          context.Context
 
 		fakeWorker           *workerfakes.FakeWorker
@@ -53,7 +52,7 @@ var _ = Describe("RunTaskStep", func() {
 		BeforeEach(func() {
 			logger = lagertest.NewTestLogger("test")
 			outputBuffer = new(bytes.Buffer)
-			ctx, cancel = context.WithCancel(context.Background())
+			ctx, _ = context.WithCancel(context.Background())
 
 			fakePool = new(workerfakes.FakePool)
 			fakeProvider = new(workerfakes.FakeWorkerProvider)
@@ -75,10 +74,10 @@ var _ = Describe("RunTaskStep", func() {
 		})
 
 		JustBeforeEach(func() {
-			workerInterval := 1 * time.Second
-			workerStatusInterval := 2 * time.Second
+			workerInterval := 250 * time.Millisecond
+			workerStatusInterval := 500 * time.Millisecond
 
-			subject = worker.NewClientWithConfig(
+			subject = worker.NewClient(
 				fakePool,
 				fakeProvider,
 				fakeCompression,
@@ -137,7 +136,9 @@ var _ = Describe("RunTaskStep", func() {
 		Context("waiting for worker to be available", func() {
 			BeforeEach(func() {
 				fakePool.FindOrChooseWorkerForContainerReturnsOnCall(0, nil, nil)
-				fakePool.FindOrChooseWorkerForContainerReturnsOnCall(1, fakeWorker, nil)
+				fakePool.FindOrChooseWorkerForContainerReturnsOnCall(1, nil, nil)
+				fakePool.FindOrChooseWorkerForContainerReturnsOnCall(2, nil, nil)
+				fakePool.FindOrChooseWorkerForContainerReturnsOnCall(3, fakeWorker, nil)
 			})
 
 			JustBeforeEach(func() {
@@ -165,57 +166,14 @@ var _ = Describe("RunTaskStep", func() {
 			})
 
 			It("task waiting metrics is gauged", func() {
-				Eventually(metric.TasksWaiting.Max(), 6*time.Second).Should(Equal(float64(1)))
-				Eventually(metric.TasksWaiting.Max(), 6*time.Second).Should(Equal(float64(0)))
+				Eventually(metric.TasksWaiting.Max(), 2*time.Second).Should(Equal(float64(1)))
+				Eventually(metric.TasksWaiting.Max(), 2*time.Second).Should(Equal(float64(0)))
 			})
 
 			It("writes status to output writer", func() {
-				Expect(outputBuffer.String()).To(ContainSubstring("Found a free worker after waiting"))
-			})
-		})
-
-		Context("worker is unavailable", func() {
-			BeforeEach(func() {
-				fakePool.FindOrChooseWorkerForContainerReturnsOnCall(0, nil, nil)
-				fakePool.FindOrChooseWorkerForContainerReturnsOnCall(1, nil, nil)
-			})
-
-			JustBeforeEach(func() {
-				go func() {
-					time.Sleep(3 * time.Second)
-					cancel()
-				}()
-
-				taskResult, err = subject.RunTaskStep(ctx,
-					logger,
-					fakeContainerOwner,
-					fakeContainerSpec,
-					fakeWorkerSpec,
-					fakeStrategy,
-					fakeMetadata,
-					fakeImageFetcherSpec,
-					fakeTaskProcessSpec,
-					fakeEventDelegate,
-					fakeLockFactory)
-			})
-
-			It("returns result of container process", func() {
-				Expect(err.Error()).To(ContainSubstring(context.Canceled.Error()))
-				Expect(taskResult).To(Not(BeNil()))
-				Expect(taskResult.ExitStatus).To(BeZero())
-			})
-
-			It("releases lock properly", func() {
-				Expect(fakeLock.ReleaseCallCount()).To(Equal(fakeLockFactory.AcquireCallCount()))
-			})
-
-			It("task waiting metrics is gauged", func() {
-				Eventually(metric.TasksWaiting.Max(), 6*time.Second).Should(Equal(float64(1)))
-				Eventually(metric.TasksWaiting.Max(), 6*time.Second).Should(Equal(float64(0)))
-			})
-
-			It("writes status to output writer", func() {
-				Expect(outputBuffer.String()).To(Equal("All workers are busy at the moment, please stand-by.\n"))
+				output := outputBuffer.String()
+				Expect(output).To(ContainSubstring("All workers are busy at the moment, please stand-by.\n"))
+				Expect(output).To(ContainSubstring("Found a free worker after waiting"))
 			})
 		})
 	})

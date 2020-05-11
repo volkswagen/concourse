@@ -146,6 +146,8 @@ type RunCommand struct {
 	ResourceWithWebhookCheckingInterval time.Duration `long:"resource-with-webhook-checking-interval" default:"1m" description:"Interval on which to check for new versions of resources that has webhook defined."`
 
 	ContainerPlacementStrategy        string        `long:"container-placement-strategy" default:"volume-locality" choice:"volume-locality" choice:"random" choice:"fewest-build-containers" choice:"limit-active-tasks" description:"Method by which a worker is selected during container placement."`
+	WorkerAvailabilityPollingInterval time.Duration `long:"worker-availability-polling-interval" default:"5s" description:"The interval to poll for available worker on strategies based on task modification"`
+	WorkerStatusPublishInterval       time.Duration `long:"worker-status-publish-interval" default:"1m" description:"Frequency with which the web node shows the status of worker being busy"`
 	MaxActiveTasksPerWorker           int           `long:"max-active-tasks-per-worker" default:"0" description:"Maximum allowed number of active build tasks per worker. Has effect only when used with limit-active-tasks placement strategy. 0 means no limit."`
 	BaggageclaimResponseHeaderTimeout time.Duration `long:"baggageclaim-response-header-timeout" default:"1m" description:"How long to wait for Baggageclaim to send the response header."`
 	StreamingArtifactsCompression     string        `long:"streaming-artifacts-compression" default:"gzip" choice:"gzip" choice:"zstd" description:"Compression algorithm for internal streaming."`
@@ -643,7 +645,7 @@ func (cmd *RunCommand) constructAPIMembers(
 	)
 
 	pool := worker.NewPool(workerProvider)
-	workerClient := worker.NewClient(pool, workerProvider, compressionLib)
+	workerClient := worker.NewClient(pool, workerProvider, compressionLib, cmd.WorkerAvailabilityPollingInterval, cmd.WorkerStatusPublishInterval)
 
 	credsManagers := cmd.CredentialManagers
 	dbPipelineFactory := db.NewPipelineFactory(dbConn, lockFactory)
@@ -871,7 +873,11 @@ func (cmd *RunCommand) constructBackendMembers(
 	)
 
 	pool := worker.NewPool(workerProvider)
-	workerClient := worker.NewClient(pool, workerProvider, compressionLib)
+	workerClient := worker.NewClient(pool,
+		workerProvider,
+		compressionLib,
+		cmd.WorkerAvailabilityPollingInterval,
+		cmd.WorkerStatusPublishInterval)
 
 	defaultLimits, err := cmd.parseDefaultLimits()
 	if err != nil {

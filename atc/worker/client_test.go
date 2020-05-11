@@ -46,8 +46,10 @@ var _ = Describe("Client", func() {
 		fakePool = new(workerfakes.FakePool)
 		fakeProvider = new(workerfakes.FakeWorkerProvider)
 		fakeCompression = new(compressionfakes.FakeCompression)
+		workerPolling := 1 * time.Second
+		workerStatus := 2 * time.Second
 
-		client = worker.NewClient(fakePool, fakeProvider, fakeCompression)
+		client = worker.NewClient(fakePool, fakeProvider, fakeCompression, workerPolling, workerStatus)
 	})
 
 	Describe("FindContainer", func() {
